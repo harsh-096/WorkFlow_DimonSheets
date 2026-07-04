@@ -54,7 +54,7 @@ const GuniChalans = {
             <option value="">Select person...</option>
             ${deliveryPersons.map(p => `<option value="${p.id}">${GuniUtils.escapeHtml(p.name)}${p.phone ? ' (' + GuniUtils.escapeHtml(p.phone) + ')' : ''}</option>`).join('')}
           </select>
-          <button class="btn btn-sm btn-secondary" style="margin-top:6px;" onclick="GuniPersons.showForm(null, () => GuniChalans.renderNew());">+ Add New Person</button>
+          <button class="btn btn-sm btn-secondary" style="margin-top:6px;" onclick="GuniPersons.showForm(null, () => GuniChalans.refreshPersonDropdown());">+ Add New Person</button>
         </div>
         <div class="form-group">
           <label>Date & Time</label>
@@ -132,6 +132,22 @@ const GuniChalans = {
   removeItemRow(idx) {
     const row = document.getElementById(`item-row-${idx}`);
     if (row) row.remove();
+  },
+
+  async refreshPersonDropdown() {
+    const select = document.getElementById('chalan-person');
+    if (!select) return;
+    const currentValue = select.value;
+    const persons = await GuniDB.getAll('persons');
+    const deliveryPersons = persons.filter(p => p.type === 'delivery' || p.type === 'worker');
+    select.innerHTML = `
+      <option value="">Select person...</option>
+      ${deliveryPersons.map(p => `<option value="${p.id}">${GuniUtils.escapeHtml(p.name)}${p.phone ? ' (' + GuniUtils.escapeHtml(p.phone) + ')' : ''}</option>`).join('')}
+    `;
+    if (currentValue) {
+      const stillExists = deliveryPersons.some(p => p.id == currentValue);
+      if (stillExists) select.value = currentValue;
+    }
   },
 
   async saveChalan() {
