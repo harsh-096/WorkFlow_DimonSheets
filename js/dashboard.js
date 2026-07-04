@@ -16,7 +16,7 @@ const GuniDashboard = {
         <div class="stats-grid">
           <div class="stat-card"><div class="stat-number">${stats.openChalans}</div><div class="stat-label">Open Chalans</div></div>
           <div class="stat-card"><div class="stat-number">${stats.totalSheetsReceived}</div><div class="stat-label">Sheets Received</div></div>
-          <div class="stat-card"><div class="stat-number">${stats.totalSheetsProduced}</div><div class="stat-label">Sheets Made</div></div>
+          <div class="stat-card"><div class="stat-number">${stats.totalSheetsCompleted}</div><div class="stat-label">Sheets Completed</div></div>
           <div class="stat-card"><div class="stat-number">${stats.totalSheetsDispatched}</div><div class="stat-label">Sheets Dispatched</div></div>
         </div>
 

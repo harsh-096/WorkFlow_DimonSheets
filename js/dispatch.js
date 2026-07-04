@@ -2,53 +2,31 @@ const GuniDispatch = {
   async renderList() {
     const c = document.getElementById('page-content');
     const headerTitle = document.querySelector('.app-header h1');
-    if (headerTitle) headerTitle.textContent = 'Dispatches';
+    if (headerTitle) headerTitle.textContent = 'Dispatch';
     const backBtn = document.querySelector('.back-btn');
     if (backBtn) backBtn.classList.remove('visible');
 
     c.innerHTML = '<div style="text-align:center;padding:40px;"><div class="spinner"></div></div>';
 
-    const dispatches = await GuniDB.getAll('dispatches');
-    const chalans = await GuniDB.getAll('chalans');
-    const persons = await GuniDB.getAll('persons');
-    const dispatchItems = await GuniDB.getAll('dispatch_items');
-
-    const chalanMap = {};
-    chalans.forEach(ch => chalanMap[ch.id] = ch);
-    const personMap = {};
-    persons.forEach(p => personMap[p.id] = p);
-
-    const itemsByDispatch = {};
-    dispatchItems.forEach(di => {
-      if (!itemsByDispatch[di.dispatch_id]) itemsByDispatch[di.dispatch_id] = [];
-      itemsByDispatch[di.dispatch_id].push(di);
-    });
-
-    dispatches.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    const dispatches = await GuniDB.getDispatchesWithDetails();
 
     c.innerHTML = `
       <div class="page-header">
-        <div><h2>Dispatches</h2><div class="subtitle">${dispatches.length} total</div></div>
+        <div><h2>Dispatch</h2><div class="subtitle">${dispatches.length} total</div></div>
         <button class="btn btn-sm btn-primary" onclick="window.location.hash='dispatch-new'">+ New</button>
       </div>
       <div class="card">
         ${dispatches.length === 0 ? '<div class="empty-state"><div class="empty-icon">📦</div><h3>No Dispatches Yet</h3></div>' :
-        dispatches.map(d => {
-          const ch = chalanMap[d.chalan_id];
-          const person = personMap[d.delivery_person_id];
-          const items = itemsByDispatch[d.id] || [];
-          const totalSheets = items.reduce((s, i) => s + Number(i.sheets_dispatched), 0);
-          const totalAmount = items.reduce((s, i) => s + Number(i.total_amount || 0), 0);
-          return `
+        dispatches.map(d => `
           <div class="list-item" onclick="window.location.hash='dispatch/detail/${d.id}'">
             <div style="width:40px;height:40px;border-radius:8px;background:#fef3c7;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">📦</div>
             <div class="info">
-              <div class="title">Chalan #${ch ? GuniUtils.escapeHtml(ch.chalan_number) : 'Unknown'}</div>
-              <div class="desc">${person ? GuniUtils.escapeHtml(person.name) : 'Unknown'} · ${totalSheets} sheets · ${GuniUtils.formatDate(d.created_at)}</div>
+              <div class="title">Chalan #${d.chalan ? GuniUtils.escapeHtml(d.chalan.chalan_number) : 'Unknown'}</div>
+              <div class="desc">${d.person ? GuniUtils.escapeHtml(d.person.name) : 'Unknown'} · ${d.totalSheets} sheets · ${GuniUtils.formatDate(d.created_at)}${d.sent_to ? ' → ' + GuniUtils.escapeHtml(d.sent_to) : ''}</div>
             </div>
-            <span style="font-weight:700;color:var(--primary);font-size:14px;">${GuniUtils.formatCurrency(totalAmount)}</span>
-          </div>`;
-        }).join('')}
+            <span style="font-weight:700;color:var(--primary);font-size:14px;">${d.totalAmount > 0 ? GuniUtils.formatCurrency(d.totalAmount) : ''}</span>
+          </div>
+        `).join('')}
       </div>
     `;
     GuniUtils.showLoading(false);
@@ -63,7 +41,7 @@ const GuniDispatch = {
 
     const chalans = await GuniDB.getChalansWithItems();
     const activeChalans = chalans.filter(ch =>
-      ch.items.some(i => i.total_produced > (i.dispatched_qty || 0))
+      ch.items.some(i => i.lots.some(l => Number(l.sheets_completed) > Number(l.dispatched_qty || 0)))
     );
     const persons = await GuniDB.getAll('persons');
     const deliveryPersons = persons.filter(p => p.type === 'delivery' || p.type === 'worker');
@@ -78,16 +56,24 @@ const GuniDispatch = {
           </select>
         </div>
         <div class="form-group">
-          <label>Delivery Person *</label>
+          <label>Delivery Person (who picks up) *</label>
           <select class="form-select" id="dispatch-person">
             <option value="">Select person...</option>
             ${deliveryPersons.map(p => `<option value="${p.id}">${GuniUtils.escapeHtml(p.name)}</option>`).join('')}
           </select>
         </div>
+        <div class="form-group">
+          <label>Sent To (retailer/company name)</label>
+          <input class="form-input" id="dispatch-sent-to" placeholder="Where is this going?">
+        </div>
+        <div class="form-group">
+          <label>Received By (signature at destination)</label>
+          <input class="form-input" id="dispatch-received-by" placeholder="Who received at destination?">
+        </div>
       </div>
 
       <div class="card" id="dispatch-items-container">
-        <div class="empty-state" style="padding:20px;"><p>Select a chalan to see items</p></div>
+        <div class="empty-state" style="padding:20px;"><p>Select a chalan to see available lots</p></div>
       </div>
 
       <button class="btn btn-primary btn-block" onclick="GuniDispatch.saveDispatch()" style="margin-top:8px;">✅ Save Dispatch</button>
@@ -99,58 +85,65 @@ const GuniDispatch = {
     const chalanId = parseInt(document.getElementById('dispatch-chalan')?.value);
     const container = document.getElementById('dispatch-items-container');
     if (!chalanId) {
-      container.innerHTML = '<div class="empty-state" style="padding:20px;"><p>Select a chalan to see items</p></div>';
+      container.innerHTML = '<div class="empty-state" style="padding:20px;"><p>Select a chalan to see available lots</p></div>';
       return;
     }
     const chalan = await GuniDB.getChalanDetail(chalanId);
     if (!chalan) return;
 
-    container.innerHTML = `<h3 style="margin-bottom:8px;">Items from Chalan #${GuniUtils.escapeHtml(chalan.chalan_number)}</h3>`;
+    let html = `<h3 style="margin-bottom:10px;">Available Lots from Chalan #${GuniUtils.escapeHtml(chalan.chalan_number)}</h3>`;
+    let hasItems = false;
+
     chalan.items.forEach(item => {
-      const available = item.total_produced - (item.dispatched_qty || 0);
-      if (available <= 0) return;
-      const div = document.createElement('div');
-      div.className = 'dispatch-item-row';
-      div.style.cssText = 'padding:12px 0;border-bottom:1px solid var(--border);';
-      div.innerHTML = `
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
-          <strong style="flex:1;">${item.design ? GuniUtils.escapeHtml(item.design.name) : 'Unknown'}</strong>
-          <span style="font-size:13px;color:var(--text-secondary);">Available: ${available}</span>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <div style="flex:1;">
-            <label style="font-size:12px;color:var(--text-secondary);">Sheets to dispatch</label>
-            <input class="form-input" type="number" id="dispatch-qty-${item.id}" min="0" max="${available}" value="${available}" style="padding:8px;" data-available="${available}">
-          </div>
-          <div style="flex:1;">
-            <label style="font-size:12px;color:var(--text-secondary);">Total Amount (₹)</label>
-            <input class="form-input" type="number" id="dispatch-amount-${item.id}" min="0" step="0.01" value="0" style="padding:8px;">
-          </div>
-        </div>
-        <input type="hidden" id="dispatch-item-id-${item.id}" value="${item.id}">
-      `;
-      container.appendChild(div);
+      item.lots.forEach((lot, li) => {
+        const available = Number(lot.sheets_completed) - Number(lot.dispatched_qty || 0);
+        if (available <= 0) return;
+        hasItems = true;
+        html += `
+          <div class="dispatch-lot-row" style="padding:12px;background:var(--bg);border-radius:8px;margin-bottom:8px;">
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+              <strong style="flex:1;">${item.design ? GuniUtils.escapeHtml(item.design.name) : 'Unknown'} — Lot ${li+1}</strong>
+              <span style="font-size:13px;color:var(--text-secondary);">Available: ${available} / ${lot.sheets_count} sheets</span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <div style="flex:1;">
+                <label style="font-size:12px;color:var(--text-secondary);">Sheets to dispatch</label>
+                <input class="form-input" type="number" id="dispatch-qty-${lot.id}" min="0" max="${available}" value="${Math.min(available, lot.sheets_completed)}" style="padding:8px;">
+              </div>
+              <div style="flex:1;">
+                <label style="font-size:12px;color:var(--text-secondary);">Total Amount (₹)</label>
+                <input class="form-input" type="number" id="dispatch-amount-${lot.id}" min="0" step="0.01" value="${lot.price_per_sheet ? lot.sheets_completed * lot.price_per_sheet : 0}" style="padding:8px;">
+              </div>
+            </div>
+            <input type="hidden" id="dispatch-lot-id-${lot.id}" value="${lot.id}">
+          </div>`;
+      });
     });
+
+    container.innerHTML = html + (!hasItems ? '<div class="empty-state" style="padding:20px;"><p>No lots available for dispatch</p></div>' : '');
   },
 
   async saveDispatch() {
     const chalanId = parseInt(document.getElementById('dispatch-chalan')?.value);
     const personId = parseInt(document.getElementById('dispatch-person')?.value);
+    const sentTo = document.getElementById('dispatch-sent-to')?.value.trim();
+    const receivedBy = document.getElementById('dispatch-received-by')?.value.trim();
+
     if (!chalanId) { GuniUtils.showToast('Select a chalan', 'error'); return; }
     if (!personId) { GuniUtils.showToast('Select a delivery person', 'error'); return; }
 
-    const itemRows = document.querySelectorAll('.dispatch-item-row');
+    const lotRows = document.querySelectorAll('.dispatch-lot-row');
     const items = [];
-    itemRows.forEach(row => {
+    lotRows.forEach(row => {
       const qtyInput = row.querySelector('input[type="number"]');
       const hiddenInput = row.querySelector('input[type="hidden"]');
       if (!qtyInput || !hiddenInput) return;
-      const chalanItemId = parseInt(hiddenInput.value);
+      const lotId = parseInt(hiddenInput.value);
       const qty = parseInt(qtyInput.value) || 0;
-      const amtInput = document.getElementById(`dispatch-amount-${chalanItemId}`);
+      const amtInput = document.getElementById(`dispatch-amount-${lotId}`);
       const amount = parseFloat(amtInput?.value) || 0;
       if (qty > 0) {
-        items.push({ chalan_item_id: chalanItemId, sheets_dispatched: qty, total_amount: amount });
+        items.push({ chalan_lot_id: lotId, sheets_dispatched: qty, total_amount: amount });
       }
     });
 
@@ -161,6 +154,8 @@ const GuniDispatch = {
       const dispatchId = await GuniDB.add('dispatches', {
         chalan_id: chalanId,
         delivery_person_id: personId,
+        sent_to: sentTo || '',
+        received_by: receivedBy || '',
         dispatched_datetime: GuniUtils.nowISO()
       });
       for (const item of items) {
@@ -193,29 +188,36 @@ const GuniDispatch = {
     const chalan = await GuniDB.getChalanDetail(dispatch.chalan_id);
     const person = await GuniDB.get('persons', dispatch.delivery_person_id);
     const dispatchItems = await GuniDB.getByField('dispatch_items', 'dispatch_id', dispatchId);
+    const allLots = await GuniDB.getAll('chalan_lots');
     const allItems = await GuniDB.getAll('chalan_items');
     const designs = await GuniDB.getAll('designs');
-    const designMap = {};
-    designs.forEach(d => designMap[d.id] = d);
+
+    const lotMap = {}; allLots.forEach(l => lotMap[l.id] = l);
+    const itemMap = {}; allItems.forEach(i => itemMap[i.id] = i);
+    const designMap = {}; designs.forEach(d => designMap[d.id] = d);
 
     const totalAmount = dispatchItems.reduce((s, i) => s + Number(i.total_amount || 0), 0);
+    const totalSheets = dispatchItems.reduce((s, i) => s + Number(i.sheets_dispatched || 0), 0);
 
     c.innerHTML = `
       <div class="card">
         <h3>Dispatch Details</h3>
         <div class="row"><span class="label">Chalan</span><span class="value">#${chalan ? GuniUtils.escapeHtml(chalan.chalan_number) : 'N/A'}</span></div>
-        <div class="row"><span class="label">Delivery Person</span><span class="value">${person ? GuniUtils.escapeHtml(person.name) : 'Unknown'}</span></div>
+        <div class="row"><span class="label">Picked Up By</span><span class="value">${person ? GuniUtils.escapeHtml(person.name) : 'Unknown'}</span></div>
+        ${dispatch.sent_to ? `<div class="row"><span class="label">Sent To</span><span class="value" style="font-weight:600;">${GuniUtils.escapeHtml(dispatch.sent_to)}</span></div>` : ''}
+        ${dispatch.received_by ? `<div class="row"><span class="label">Received By</span><span class="value" style="font-weight:600;">${GuniUtils.escapeHtml(dispatch.received_by)}</span></div>` : ''}
         <div class="row"><span class="label">Date</span><span class="value">${GuniUtils.formatDateTime(dispatch.dispatched_datetime || dispatch.created_at)}</span></div>
       </div>
 
       <div class="card">
-        <h3>Items Dispatched</h3>
+        <h3>Items Dispatched (${totalSheets} sheets)</h3>
         ${dispatchItems.map(di => {
-          const item = allItems.find(i => i.id === di.chalan_item_id);
+          const lot = lotMap[di.chalan_lot_id];
+          const item = lot ? itemMap[lot.chalan_item_id] : null;
           const design = item ? designMap[item.design_id] : null;
           return `
           <div class="row">
-            <span class="label">${design ? GuniUtils.escapeHtml(design.name) : 'Unknown'}</span>
+            <span class="label">${design ? GuniUtils.escapeHtml(design.name) : 'Unknown'}${lot ? ` (Lot ${(allLots.filter(l => l.chalan_item_id === lot.chalan_item_id).indexOf(lot) + 1) || ''})` : ''}</span>
             <span class="value">${di.sheets_dispatched} sheets · ${GuniUtils.formatCurrency(di.total_amount)}</span>
           </div>`;
         }).join('')}

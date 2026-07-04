@@ -10,7 +10,7 @@ const GuniApp = {
     'chalans': 'chalans',
     'chalan-new': 'chalan-new',
     'chalan-detail': 'chalan-detail',
-    'production': 'production',
+    'comparison': 'comparison',
     'dispatches': 'dispatches',
     'dispatch-new': 'dispatch-new',
     'dispatch-detail': 'dispatch-detail',
@@ -50,6 +50,11 @@ const GuniApp = {
       this.showPage('chalan-detail');
       return;
     }
+    if (page === 'comparison' && parts[1]) {
+      this.currentChalanId = parseInt(parts[1]);
+      this.showPage('comparison-detail');
+      return;
+    }
     if (page === 'report' && parts[1] && parts[2]) {
       this.currentChalanId = parseInt(parts[2]);
       if (parts[1] === 'pdf') { GuniReports.generatePDF(this.currentChalanId); return; }
@@ -82,7 +87,8 @@ const GuniApp = {
       'chalans': 'nav-chalans',
       'chalan-new': 'nav-chalans',
       'chalan-detail': 'nav-chalans',
-      'production': 'nav-production',
+      'comparison': 'nav-comparison',
+      'comparison-detail': 'nav-comparison',
       'dispatches': 'nav-dispatches',
       'dispatch-new': 'nav-dispatches',
       'dispatch-detail': 'nav-dispatches',
@@ -105,7 +111,8 @@ const GuniApp = {
       case 'chalans': GuniChalans.renderList(); break;
       case 'chalan-new': GuniChalans.renderNew(); break;
       case 'chalan-detail': GuniChalans.renderDetail(this.currentChalanId); break;
-      case 'production': GuniProduction.render(); break;
+      case 'comparison': GuniComparison.render(); break;
+      case 'comparison-detail': GuniComparison.renderForChalan(this.currentChalanId); break;
       case 'dispatches': GuniDispatch.renderList(); break;
       case 'dispatch-new': GuniDispatch.renderNew(); break;
       case 'dispatch-detail': GuniDispatch.renderDetail(this.currentChalanId); break;
@@ -119,6 +126,7 @@ const GuniApp = {
     const navMap = {
       'chalan-new': 'chalans',
       'chalan-detail': 'chalans',
+      'comparison-detail': 'chalans',
       'dispatch-new': 'dispatches',
       'dispatch-detail': 'dispatches',
     };
@@ -142,6 +150,7 @@ const GuniApp = {
         ${[
           { icon: '👤', label: 'People', page: 'persons' },
           { icon: '🎨', label: 'Designs', page: 'designs' },
+          { icon: '📊', label: 'Comparison', page: 'comparison' },
           { icon: '📄', label: 'Reports', page: 'reports' },
           { icon: '⚙️', label: 'Settings', page: 'settings' }
         ].map(item => `
@@ -167,16 +176,40 @@ const GuniApp = {
       <div class="page-header">
         <h2>Settings</h2>
       </div>
-      <div class="card">
-        <h3>Backup & Restore</h3>
-        <p style="margin-bottom:12px;color:var(--text-secondary);">Export all your data as a JSON file or restore from a backup.</p>
-        <button class="btn btn-primary" onclick="GuniApp.exportBackup()" style="margin-right:8px;">📤 Export Backup</button>
-        <button class="btn btn-secondary" onclick="GuniApp.importBackup()">📥 Restore Backup</button>
+      <div class="card" style="border-left:3px solid var(--warning);">
+        <h3>⚠️ Data Storage Warning</h3>
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">
+          All data (chalans, designs, photos) is stored <strong>inside your phone's browser storage</strong> (IndexedDB).
+          You <strong>cannot choose a folder</strong> for this — it's managed by the browser automatically.
+        </p>
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">
+          <strong>Data is at risk if:</strong>
+        </p>
+        <ul style="font-size:13px;color:var(--text-secondary);margin-left:16px;margin-bottom:8px;">
+          <li>You clear Chrome/browser data</li>
+          <li>You uninstall or switch phones</li>
+          <li>The browser storage gets full</li>
+        </ul>
+        <p style="font-size:13px;font-weight:600;color:var(--text);">
+          ✅ Always keep a backup! Export regularly below.
+        </p>
       </div>
       <div class="card">
-        <h3>App Info</h3>
-        <p>Version 1.0 | All data stored on your device</p>
-        <p style="color:var(--text-secondary);font-size:13px;">This app works offline. Add to your home screen for the best experience.</p>
+        <h3>Backup & Restore</h3>
+        <p style="margin-bottom:12px;color:var(--text-secondary);">Download a JSON backup file. Keep it safe on your phone or cloud storage.</p>
+        <button class="btn btn-primary btn-block" onclick="GuniApp.exportBackup()" style="margin-bottom:8px;">📤 Download Backup</button>
+        <button class="btn btn-secondary btn-block" onclick="GuniApp.importBackup()">📥 Restore from Backup</button>
+      </div>
+      <div class="card">
+        <h3>Where is my data?</h3>
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:4px;">
+          Your data is NOT on Vercel's servers. It's in your phone's Chrome storage.
+          To see it: Chrome ⋮ → Settings → Site Settings → Storage → find your app URL.
+        </p>
+        <p style="font-size:13px;color:var(--text-secondary);">
+          Photos are stored as data inside the app storage — they take extra space.
+          If storage gets full, export backup first, then clear site data.
+        </p>
       </div>
     `;
     GuniUtils.showLoading(false);

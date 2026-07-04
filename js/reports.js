@@ -21,7 +21,7 @@ const GuniReports = {
             <div style="width:40px;height:40px;border-radius:8px;background:var(--primary-light);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">📄</div>
             <div class="info">
               <div class="title">Chalan #${GuniUtils.escapeHtml(ch.chalan_number)}</div>
-              <div class="desc">${ch.person ? GuniUtils.escapeHtml(ch.person.name) : 'Unknown'} · ${ch.items.length} items</div>
+              <div class="desc">${ch.person ? GuniUtils.escapeHtml(ch.person.name) : 'Unknown'} · ${ch.items.reduce((s, i) => s + i.lots.length, 0)} lots · ${GuniUtils.formatDate(ch.created_at)}</div>
             </div>
             <button class="btn btn-sm btn-secondary">View</button>
           </div>
@@ -55,43 +55,52 @@ const GuniReports = {
   },
 
   buildReportHTML(chalan) {
-    const totalSheets = chalan.items.reduce((s, i) => s + Number(i.quantity_received || 0), 0);
-    const totalProduced = chalan.items.reduce((s, i) => s + Number(i.total_produced || 0), 0);
-    const totalDispatched = chalan.items.reduce((s, i) => s + Number(i.dispatched_qty || 0), 0);
-    const totalAmount = chalan.items.reduce((s, i) => s + Number(i.total_pricing || 0), 0);
-    const itemsWithPricing = chalan.items.filter(i => i.pricing);
+    const allLots = [];
+    chalan.items.forEach(item => {
+      item.lots.forEach(lot => {
+        allLots.push({ ...lot, design: item.design });
+      });
+    });
+
+    const totalSheets = allLots.reduce((s, l) => s + Number(l.sheets_count), 0);
+    const totalCompleted = allLots.reduce((s, l) => s + Number(l.sheets_completed), 0);
+    const totalDispatched = allLots.reduce((s, l) => s + Number(l.dispatched_qty), 0);
+    const totalAmount = allLots.reduce((s, l) => s + (Number(l.price_per_sheet) ? Number(l.sheets_count) * Number(l.price_per_sheet) : 0), 0);
+    const hasPricing = allLots.some(l => Number(l.price_per_sheet) > 0);
 
     return `
       <div class="report-card" id="report-card">
         <div class="report-header">
           <h2>Chalan Report</h2>
           <p>Chalan #${GuniUtils.escapeHtml(chalan.chalan_number)}</p>
-          <p style="font-size:12px;">${chalan.person ? 'Delivery: ' + GuniUtils.escapeHtml(chalan.person.name) : ''} · ${GuniUtils.formatDate(chalan.created_at)}</p>
-          ${chalan.signature ? `<p style="font-size:12px;">Signature: ${GuniUtils.escapeHtml(chalan.signature)}</p>` : ''}
+          <p style="font-size:12px;">
+            ${chalan.person ? 'Delivered by: ' + GuniUtils.escapeHtml(chalan.person.name) : ''}
+            ${chalan.person && chalan.signature ? ' · ' : ''}
+            ${chalan.signature ? 'Received by: ' + GuniUtils.escapeHtml(chalan.signature) : ''}
+            · ${GuniUtils.formatDate(chalan.created_at)}
+          </p>
         </div>
 
         <table class="report-table">
           <thead>
             <tr>
               <th>Design</th>
-              <th style="text-align:center;">Qty</th>
-              <th style="text-align:center;">Lots</th>
-              <th style="text-align:center;">Produced</th>
+              <th style="text-align:center;">Lot</th>
+              <th style="text-align:center;">Sheets</th>
+              <th style="text-align:center;">Completed</th>
               <th style="text-align:center;">Dispatched</th>
-              <th style="text-align:right;">Price/Sheet</th>
-              <th style="text-align:right;">Total</th>
+              ${hasPricing ? '<th style="text-align:right;">Price/Sheet</th><th style="text-align:right;">Total</th>' : ''}
             </tr>
           </thead>
           <tbody>
-            ${chalan.items.map(item => `
+            ${allLots.map((lot, i) => `
               <tr>
-                <td>${item.design ? GuniUtils.escapeHtml(item.design.name) : 'Unknown'}</td>
-                <td style="text-align:center;">${item.quantity_received}</td>
-                <td style="text-align:center;">${item.lots || '-'}</td>
-                <td style="text-align:center;">${item.total_produced}</td>
-                <td style="text-align:center;">${item.dispatched_qty}</td>
-                <td style="text-align:right;">${item.pricing ? GuniUtils.formatCurrency(item.pricing.price_per_sheet) : '-'}</td>
-                <td style="text-align:right;font-weight:600;">${item.pricing ? GuniUtils.formatCurrency(item.total_pricing) : '-'}</td>
+                <td>${lot.design ? GuniUtils.escapeHtml(lot.design.name) : 'Unknown'}</td>
+                <td style="text-align:center;">${i + 1}</td>
+                <td style="text-align:center;">${lot.sheets_count}</td>
+                <td style="text-align:center;">${lot.sheets_completed || 0}</td>
+                <td style="text-align:center;">${lot.dispatched_qty || 0}</td>
+                ${hasPricing ? `<td style="text-align:right;">${lot.price_per_sheet ? GuniUtils.formatCurrency(lot.price_per_sheet) : '-'}</td><td style="text-align:right;font-weight:600;">${lot.price_per_sheet ? GuniUtils.formatCurrency(lot.sheets_count * lot.price_per_sheet) : '-'}</td>` : ''}
               </tr>
             `).join('')}
           </tbody>
@@ -99,15 +108,17 @@ const GuniReports = {
 
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);text-align:center;">
           <div><div style="font-size:18px;font-weight:700;color:var(--primary);">${totalSheets}</div><div style="font-size:11px;color:var(--text-secondary);">Total Sheets</div></div>
-          <div><div style="font-size:18px;font-weight:700;color:var(--success);">${totalProduced}</div><div style="font-size:11px;color:var(--text-secondary);">Produced</div></div>
+          <div><div style="font-size:18px;font-weight:700;color:var(--success);">${totalCompleted}</div><div style="font-size:11px;color:var(--text-secondary);">Completed</div></div>
           <div><div style="font-size:18px;font-weight:700;color:var(--warning);">${totalDispatched}</div><div style="font-size:11px;color:var(--text-secondary);">Dispatched</div></div>
         </div>
 
-        ${itemsWithPricing.length > 0 ? `
+        ${hasPricing ? `
           <div class="report-total">
             Total Amount: ${GuniUtils.formatCurrency(totalAmount)}
           </div>
         ` : ''}
+
+        ${chalan.notes ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:12px;color:var(--text-secondary);">Notes: ${GuniUtils.escapeHtml(chalan.notes)}</div>` : ''}
       </div>
     `;
   },
