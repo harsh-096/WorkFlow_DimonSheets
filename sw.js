@@ -1,5 +1,5 @@
-const CACHE = 'guni-v1';
-const FILES = [
+const CACHE = 'guni-v3';
+const STATIC_FILES = [
   '/',
   '/index.html',
   '/manifest.json',
@@ -13,37 +13,53 @@ const FILES = [
   '/js/chalans.js',
   '/js/production.js',
   '/js/dispatch.js',
-  '/js/reports.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'
+  '/js/reports.js'
 ];
+
+const CDN_CACHE = 'guni-cdn';
 
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(FILES))
+    caches.open(CACHE).then(c => c.addAll(STATIC_FILES)).then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys => Promise.all(
-      keys.filter(k => k !== CACHE).map(k => caches.delete(k))
-    ))
+      keys.filter(k => k !== CACHE && k !== CDN_CACHE).map(k => caches.delete(k))
+    )).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', e => {
-  if (e.request.url.startsWith('http')) {
+  const url = new URL(e.request.url);
+
+  if (url.hostname === 'cdnjs.cloudflare.com') {
     e.respondWith(
-      caches.match(e.request).then(cached => {
-        const fetched = fetch(e.request).then(
-          res => { const r = res.clone(); caches.open(CACHE).then(c => c.put(e.request, r)); return res; },
-          () => cached
-        );
-        return fetched || cached;
-      })
+      caches.open(CDN_CACHE).then(cache =>
+        cache.match(e.request).then(cached =>
+          (cached || fetch(e.request).then(res => {
+            cache.put(e.request, res.clone());
+            return res;
+          }))
+        )
+      )
+    );
+    return;
+  }
+
+  if (url.origin === self.location.origin) {
+    e.respondWith(
+      caches.open(CACHE).then(cache =>
+        cache.match(e.request).then(cached => {
+          const fetched = fetch(e.request).then(res => {
+            if (res.ok) cache.put(e.request, res.clone());
+            return res;
+          }).catch(() => cached);
+          return cached || fetched;
+        })
+      )
     );
   }
 });

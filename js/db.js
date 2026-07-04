@@ -1,18 +1,18 @@
 const GuniDB = {
   db: null,
   DB_NAME: 'guni_app',
-  DB_VERSION: 2,
+  DB_VERSION: 1,
 
   STORES: {
-    persons: 'id',
-    designs: 'id',
-    design_images: 'id',
-    chalans: 'id',
-    chalan_items: 'id',
-    production: 'id',
-    pricing: 'id',
-    dispatches: 'id',
-    dispatch_items: 'id'
+    persons: null,
+    designs: null,
+    design_images: null,
+    chalans: null,
+    chalan_items: null,
+    production: null,
+    pricing: null,
+    dispatches: null,
+    dispatch_items: null
   },
 
   open() {
@@ -20,22 +20,12 @@ const GuniDB = {
       const req = indexedDB.open(this.DB_NAME, this.DB_VERSION);
       req.onupgradeneeded = e => {
         const db = e.target.result;
-        if (e.oldVersion < 1) {
-          db.createObjectStore('persons', { keyPath: 'id', autoIncrement: true });
-          db.createObjectStore('designs', { keyPath: 'id', autoIncrement: true });
-          db.createObjectStore('design_images', { keyPath: 'id', autoIncrement: true });
-          db.createObjectStore('chalans', { keyPath: 'id', autoIncrement: true });
-          db.createObjectStore('chalan_items', { keyPath: 'id', autoIncrement: true });
-          db.createObjectStore('production', { keyPath: 'id', autoIncrement: true });
-          db.createObjectStore('pricing', { keyPath: 'id', autoIncrement: true });
-          db.createObjectStore('dispatches', { keyPath: 'id', autoIncrement: true });
-          db.createObjectStore('dispatch_items', { keyPath: 'id', autoIncrement: true });
-        }
-        if (e.oldVersion < 2) {
-          if (!db.objectStoreNames.contains('dispatch_items')) {
-            db.createObjectStore('dispatch_items', { keyPath: 'id', autoIncrement: true });
+        ['persons', 'designs', 'design_images', 'chalans', 'chalan_items',
+         'production', 'pricing', 'dispatches', 'dispatch_items'].forEach(name => {
+          if (!db.objectStoreNames.contains(name)) {
+            db.createObjectStore(name, { keyPath: 'id', autoIncrement: true });
           }
-        }
+        });
       };
       req.onsuccess = e => { this.db = e.target.result; resolve(this.db); };
       req.onerror = e => reject(e.target.error);
