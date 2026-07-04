@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#1e40af">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <title>Guni - Sheet Management</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <header class="app-header">
+    <button class="back-btn" onclick="GuniApp.goBack()" id="back-btn">←</button>
+    <h1 onclick="GuniApp.showMenu()" style="cursor:pointer;">Guni</h1>
+    <button class="btn-icon" onclick="GuniApp.showMenu()">☰</button>
+  </header>
+
+  <main class="page-content" id="page-content">
+    <div style="text-align:center;padding:60px 20px;">
+      <div class="spinner" style="margin:0 auto 16px;"></div>
+      <p style="color:var(--text-secondary);">Loading...</p>
+    </div>
+  </main>
+
+  <nav class="bottom-nav">
+    <button class="nav-item active" id="nav-dashboard" data-page="dashboard">
+      <span class="nav-icon">🏠</span> Home
+    </button>
+    <button class="nav-item" id="nav-chalans" data-page="chalans">
+      <span class="nav-icon">📋</span> Chalans
+    </button>
+    <button class="nav-item" id="nav-production" data-page="production">
+      <span class="nav-icon">⚙️</span> Production
+    </button>
+    <button class="nav-item" id="nav-dispatches" data-page="dispatches">
+      <span class="nav-icon">📦</span> Dispatch
+    </button>
+    <button class="nav-item" id="nav-reports" data-page="reports">
+      <span class="nav-icon">📄</span> Reports
+    </button>
+  </nav>
+</div>
+
+<div id="toast-container"></div>
+
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-box">
+    <h3 id="confirm-title">Confirm</h3>
+    <p id="confirm-body">Are you sure?</p>
+    <div class="btn-group">
+      <button class="btn btn-secondary" id="confirm-no">Cancel</button>
+      <button class="btn btn-primary" id="confirm-yes">Yes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Secondary nav for extra pages (hidden tabs accessible via nav) -->
+<div style="display:none;">
+  <button id="nav-persons" data-page="persons"></button>
+  <button id="nav-designs" data-page="designs"></button>
+  <button id="nav-settings" data-page="settings"></button>
+</div>
+
+<script src="/js/db.js"></script>
+<script src="/js/utils.js"></script>
+<script src="/js/dashboard.js"></script>
+<script src="/js/persons.js"></script>
+<script src="/js/designs.js"></script>
+<script src="/js/chalans.js"></script>
+<script src="/js/production.js"></script>
+<script src="/js/dispatch.js"></script>
+<script src="/js/reports.js"></script>
+<script src="/js/app.js"></script>
+</body>
+</html>
