@@ -61,6 +61,11 @@ const GuniApp = {
       if (parts[1] === 'png') { GuniReports.generatePNG(this.currentChalanId); return; }
       return;
     }
+    if (page === 'dispatch-new' && parts[1]) {
+      this.currentChalanId = parseInt(parts[1]);
+      this.showPage('dispatch-new');
+      return;
+    }
     if (page === 'dispatch' && parts[1] === 'detail' && parts[2]) {
       this.currentChalanId = parseInt(parts[2]);
       this.showPage('dispatch-detail');
@@ -114,7 +119,7 @@ const GuniApp = {
       case 'comparison': GuniComparison.render(); break;
       case 'comparison-detail': GuniComparison.renderForChalan(this.currentChalanId); break;
       case 'dispatches': GuniDispatch.renderList(); break;
-      case 'dispatch-new': GuniDispatch.renderNew(); break;
+      case 'dispatch-new': GuniDispatch.renderNew(this.currentChalanId); break;
       case 'dispatch-detail': GuniDispatch.renderDetail(this.currentChalanId); break;
       case 'reports': GuniReports.render(); break;
       case 'settings': this.renderSettings(); break;
@@ -172,44 +177,65 @@ const GuniApp = {
 
   renderSettings() {
     const c = document.getElementById('page-content');
+    const backupFolder = localStorage.getItem('guni_backup_folder') || '';
+    const autoBackup = localStorage.getItem('guni_auto_backup') === 'true';
     c.innerHTML = `
       <div class="page-header">
         <h2>Settings</h2>
       </div>
+
       <div class="card" style="border-left:3px solid var(--warning);">
-        <h3>⚠️ Data Storage Warning</h3>
+        <h3>⚠️ Data Storage</h3>
         <p style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">
-          All data (chalans, designs, photos) is stored <strong>inside your phone's browser storage</strong> (IndexedDB).
-          You <strong>cannot choose a folder</strong> for this — it's managed by the browser automatically.
+          The app stores all data <strong>inside your phone's browser storage</strong> (IndexedDB).
+          You cannot directly change this folder — it's managed by the browser.
         </p>
-        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">
-          <strong>Data is at risk if:</strong>
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:4px;">
+          <strong>To protect your data:</strong>
         </p>
         <ul style="font-size:13px;color:var(--text-secondary);margin-left:16px;margin-bottom:8px;">
-          <li>You clear Chrome/browser data</li>
-          <li>You uninstall or switch phones</li>
-          <li>The browser storage gets full</li>
+          <li>Set up <strong>Auto-Backup</strong> below to a folder you choose</li>
+          <li>The app will save a backup there after every change</li>
+          <li>You can also manually download backup anytime</li>
         </ul>
-        <p style="font-size:13px;font-weight:600;color:var(--text);">
-          ✅ Always keep a backup! Export regularly below.
-        </p>
       </div>
+
       <div class="card">
-        <h3>Backup & Restore</h3>
-        <p style="margin-bottom:12px;color:var(--text-secondary);">Download a JSON backup file. Keep it safe on your phone or cloud storage.</p>
-        <button class="btn btn-primary btn-block" onclick="GuniApp.exportBackup()" style="margin-bottom:8px;">📤 Download Backup</button>
-        <button class="btn btn-secondary btn-block" onclick="GuniApp.importBackup()">📥 Restore from Backup</button>
+        <h3>📂 Auto-Backup Folder</h3>
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;">
+          Choose a folder on your device where backups will be saved automatically.
+        </p>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+          <button class="btn btn-primary" onclick="GuniApp.chooseBackupFolder()">${backupFolder ? '📁 Change Folder' : '📁 Choose Folder'}</button>
+          ${backupFolder ? `<button class="btn btn-sm btn-danger" onclick="GuniApp.removeBackupFolder()">× Remove</button>` : ''}
+        </div>
+        ${backupFolder ? `<p style="font-size:12px;color:var(--success);word-break:break-all;">✅ Folder selected</p>` : `<p style="font-size:12px;color:var(--text-secondary);">No folder selected. Backup will only be manual.</p>`}
       </div>
+
       <div class="card">
-        <h3>Where is my data?</h3>
-        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:4px;">
-          Your data is NOT on Vercel's servers. It's in your phone's Chrome storage.
-          To see it: Chrome ⋮ → Settings → Site Settings → Storage → find your app URL.
-        </p>
-        <p style="font-size:13px;color:var(--text-secondary);">
-          Photos are stored as data inside the app storage — they take extra space.
-          If storage gets full, export backup first, then clear site data.
-        </p>
+        <h3>🔄 Auto-Backup Toggle</h3>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <p style="font-size:13px;color:var(--text-secondary);">Save backup automatically after every change</p>
+          <label style="position:relative;display:inline-block;width:48px;height:26px;">
+            <input type="checkbox" id="auto-backup-toggle" ${autoBackup && backupFolder ? 'checked' : ''} onchange="GuniApp.toggleAutoBackup()" style="opacity:0;width:0;height:0;">
+            <span style="position:absolute;cursor:pointer;inset:0;background:${autoBackup && backupFolder ? 'var(--success)' : 'var(--border)'};border-radius:13px;transition:0.3s;">
+              <span style="position:absolute;left:3px;top:3px;width:20px;height:20px;background:white;border-radius:50%;transition:0.3s;transform:${autoBackup && backupFolder ? 'translateX(22px)' : 'translateX(0)'};"></span>
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>💾 Manual Backup</h3>
+        <button class="btn btn-primary btn-block" onclick="GuniApp.exportBackup()" style="margin-bottom:8px;">📤 Download Backup Now</button>
+        <button class="btn btn-secondary btn-block" onclick="GuniApp.importBackup()">📥 Restore from Backup File</button>
+      </div>
+
+      <div class="card">
+        <h3>App Info</h3>
+        <p style="font-size:13px;color:var(--text-secondary);">Version 1.0 · Offline PWA</p>
+        <p style="font-size:13px;color:var(--text-secondary);">Data stored in: Chrome IndexedDB (phone storage)</p>
+        <p style="font-size:13px;color:var(--text-secondary);">Check storage: Chrome ⋮ → Settings → Site Settings → Storage</p>
       </div>
     `;
     GuniUtils.showLoading(false);
@@ -254,6 +280,83 @@ const GuniApp = {
       GuniUtils.showLoading(false);
     };
     input.click();
+  },
+
+  async chooseBackupFolder() {
+    if (!window.showDirectoryPicker) {
+      GuniUtils.showToast('Your browser does not support folder selection. Use manual backup instead.', 'error');
+      return;
+    }
+    try {
+      const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+      localStorage.setItem('guni_backup_folder_handle', JSON.stringify({ name: dirHandle.name }));
+      localStorage.setItem('guni_backup_folder', dirHandle.name);
+      localStorage.setItem('guni_auto_backup', 'true');
+      this._backupDirHandle = dirHandle;
+      GuniUtils.showToast(`Folder selected: ${dirHandle.name}`);
+      this.renderSettings();
+      await this.saveAutoBackup();
+    } catch (e) {
+      if (e.name !== 'AbortError' && e.name !== 'SecurityError') {
+        GuniUtils.showToast('Could not select folder: ' + e.message, 'error');
+      }
+    }
+  },
+
+  removeBackupFolder() {
+    localStorage.removeItem('guni_backup_folder_handle');
+    localStorage.removeItem('guni_backup_folder');
+    localStorage.removeItem('guni_auto_backup');
+    this._backupDirHandle = null;
+    GuniUtils.showToast('Backup folder removed');
+    this.renderSettings();
+  },
+
+  toggleAutoBackup() {
+    const toggle = document.getElementById('auto-backup-toggle');
+    const isOn = toggle?.checked || false;
+    localStorage.setItem('guni_auto_backup', isOn ? 'true' : 'false');
+    if (isOn && !localStorage.getItem('guni_backup_folder')) {
+      GuniUtils.showToast('Select a backup folder first', 'error');
+      toggle.checked = false;
+      localStorage.setItem('guni_auto_backup', 'false');
+    } else if (isOn) {
+      GuniUtils.showToast('Auto-backup enabled');
+      this.saveAutoBackup();
+    } else {
+      GuniUtils.showToast('Auto-backup disabled');
+    }
+  },
+
+  async saveAutoBackup() {
+    const isEnabled = localStorage.getItem('guni_auto_backup') === 'true';
+    const folderName = localStorage.getItem('guni_backup_folder');
+    if (!isEnabled || !folderName) return;
+    try {
+      let dirHandle = this._backupDirHandle;
+      if (!dirHandle && window.showDirectoryPicker) {
+        try {
+          dirHandle = await window.showDirectoryPicker({ mode: 'readwrite', id: 'guni-backup', startIn: 'documents' });
+          this._backupDirHandle = dirHandle;
+        } catch { return; }
+      }
+      if (!dirHandle) return;
+      const data = await GuniDB.exportAll();
+      const jsonStr = JSON.stringify(data, null, 2);
+      const fileName = `guni-backup-${new Date().toISOString().split('T')[0]}.json`;
+      const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(jsonStr);
+      await writable.close();
+    } catch (e) {
+      console.error('Auto-backup failed:', e);
+    }
+  },
+
+  async autoBackupIfEnabled() {
+    if (localStorage.getItem('guni_auto_backup') === 'true' && localStorage.getItem('guni_backup_folder')) {
+      await this.saveAutoBackup();
+    }
   }
 };
 

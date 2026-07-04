@@ -32,7 +32,7 @@ const GuniDispatch = {
     GuniUtils.showLoading(false);
   },
 
-  async renderNew() {
+  async renderNew(preselectChalanId = null) {
     const c = document.getElementById('page-content');
     const headerTitle = document.querySelector('.app-header h1');
     if (headerTitle) headerTitle.textContent = 'New Dispatch';
@@ -52,7 +52,7 @@ const GuniDispatch = {
           <label>Select Chalan *</label>
           <select class="form-select" id="dispatch-chalan" onchange="GuniDispatch.onChalanChange()">
             <option value="">Choose chalan...</option>
-            ${activeChalans.map(ch => `<option value="${ch.id}">Chalan #${GuniUtils.escapeHtml(ch.chalan_number)} (${ch.person ? GuniUtils.escapeHtml(ch.person.name) : ''})</option>`).join('')}
+            ${activeChalans.map(ch => `<option value="${ch.id}" ${preselectChalanId == ch.id ? 'selected' : ''}>Chalan #${GuniUtils.escapeHtml(ch.chalan_number)} (${ch.person ? GuniUtils.escapeHtml(ch.person.name) : ''})</option>`).join('')}
           </select>
         </div>
         <div class="form-group">
@@ -79,6 +79,9 @@ const GuniDispatch = {
       <button class="btn btn-primary btn-block" onclick="GuniDispatch.saveDispatch()" style="margin-top:8px;">✅ Save Dispatch</button>
     `;
     GuniUtils.showLoading(false);
+    if (preselectChalanId) {
+      setTimeout(() => this.onChalanChange(), 100);
+    }
   },
 
   async onChalanChange() {
@@ -162,6 +165,7 @@ const GuniDispatch = {
         await GuniDB.add('dispatch_items', { dispatch_id: dispatchId, ...item });
       }
       GuniUtils.showToast('Dispatch saved!');
+      GuniApp.autoBackupIfEnabled();
       window.location.hash = 'dispatches';
     } catch (e) {
       GuniUtils.showToast('Error: ' + e.message, 'error');

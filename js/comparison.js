@@ -28,9 +28,12 @@ const GuniComparison = {
         </div>
       ` : openChalans.map(ch => `
         <div class="card" style="padding:0;overflow:hidden;">
-          <div style="background:var(--primary);color:white;padding:12px 16px;">
-            <strong>Chalan #${GuniUtils.escapeHtml(ch.chalan_number)}</strong>
-            <span style="font-size:13px;margin-left:8px;">${ch.person ? GuniUtils.escapeHtml(ch.person.name) : ''}</span>
+          <div style="background:var(--primary);color:white;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <strong>Chalan #${GuniUtils.escapeHtml(ch.chalan_number)}</strong>
+              <span style="font-size:13px;margin-left:8px;">${ch.person ? GuniUtils.escapeHtml(ch.person.name) : ''}</span>
+            </div>
+            <button class="btn btn-sm" style="background:rgba(255,255,255,0.2);color:white;border:none;padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;" onclick="event.stopPropagation();window.location.hash='dispatch-new/${ch.id}'">📦 Dispatch</button>
           </div>
           ${ch.items.filter(item => item.lots.some(l => Number(l.sheets_completed) < Number(l.sheets_count))).map(item => `
             <div style="padding:12px 16px;border-bottom:1px solid var(--border);">
@@ -134,8 +137,9 @@ const GuniComparison = {
         </div>
       `).join('')}
 
-      <div style="display:flex;gap:8px;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-secondary" onclick="window.location.hash='chalan/detail/${chalanId}'">← Back to Chalan</button>
+        <button class="btn btn-success" onclick="window.location.hash='dispatch-new/${chalanId}'">📦 Dispatch Now</button>
         <button class="btn btn-secondary" onclick="GuniReports.previewReport(${chalanId})">📄 Report</button>
       </div>
       <div style="height:20px;"></div>

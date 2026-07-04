@@ -252,6 +252,7 @@ const GuniChalans = {
       }
 
       GuniUtils.showToast('Chalan saved successfully!');
+      GuniApp.autoBackupIfEnabled();
       window.location.hash = `chalan/detail/${chalanId}`;
     } catch (e) {
       GuniUtils.showToast('Error saving chalan: ' + e.message, 'error');
